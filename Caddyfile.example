@@ -1,0 +1,8 @@
+# Caddy 反向代理配置模板
+# 用法: sudo cp Caddyfile.example /etc/caddy/Caddyfile
+# 然后把 loc.yourdomain.com 换成你的域名
+# Caddy 会自动申请 Let's Encrypt 免费 HTTPS 证书
+
+loc.yourdomain.com {
+    reverse_proxy localhost:3000
+}

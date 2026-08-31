@@ -48,7 +48,7 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: '服务器内部错误' });
 });
 
-app.listen(config.port, () => {
+const server = app.listen(config.port, () => {
   console.log(`\n  ╔══════════════════════════════════════╗`);
   console.log(`  ║  WKT6 定位 2 - Server Started         ║`);
   console.log(`  ╠══════════════════════════════════════╣`);
@@ -56,3 +56,16 @@ app.listen(config.port, () => {
   console.log(`  ║  API:  http://localhost:${config.port}/api     ║`);
   console.log(`  ╚══════════════════════════════════════╝\n`);
 });
+
+// 优雅关闭（PM2 restart / Docker stop 时不会丢数据）
+function shutdown(signal) {
+  console.log(`\n[${signal}] 正在关闭服务器...`);
+  server.close(() => {
+    console.log('服务器已关闭。');
+    process.exit(0);
+  });
+  // 5 秒后强制退出
+  setTimeout(() => process.exit(1), 5000);
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));

@@ -47,9 +47,52 @@ npm start
 | GET | `/api/certificate` | 下载 Root CA .cer |
 | GET | `/api/vpn/server-bundle` | 获取服务器证书包（部署 VPN 用） |
 
-## 部署
+## 部署到云服务器（手机随时访问）
 
-详见 [docs/DEPLOY.md](docs/DEPLOY.md)
+部署到一台有公网 IP 的云服务器后，手机在外面也能随时打开网址使用。
+
+### 前提
+
+- 一台云服务器（有公网 IP，开放 80/443 端口）
+- 一个域名解析到服务器 IP（如 `loc.yourdomain.com` → 服务器 IP）
+
+> **为什么需要 HTTPS？** iOS 描述文件必须通过 HTTPS 下载，HTTP 会被 iPhone 拒绝。
+
+### 步骤
+
+```bash
+# 1. 服务器上拉代码
+git clone https://github.com/Iexplain/apple-location.git
+cd apple-location
+npm install
+
+# 2. 配置
+cp .env.example .env
+nano .env
+#   → 把 VPN_SERVER_ADDRESS 改成你的域名
+
+# 3. 用 PM2 后台运行（不会因 SSH 断开而停）
+npm install -g pm2
+pm2 start ecosystem.config.js
+pm2 save && pm2 startup
+
+# 4. 装 Caddy 自动配置 HTTPS（一行搞定域名 + 证书）
+sudo apt install caddy
+sudo cp Caddyfile.example /etc/caddy/Caddyfile
+#   → 编辑 Caddyfile 把 loc.yourdomain.com 换成你的域名
+sudo systemctl restart caddy
+```
+
+完成后，手机浏览器打开 `https://你的域名` 即可。
+
+### Docker 方式
+
+```bash
+docker build -t apple-location .
+docker run -d -p 3000:3000 --name apple-location --restart unless-stopped apple-location
+```
+
+> Docker 方式同样需要 Caddy/Nginx 做 HTTPS 反向代理。
 
 ## VPN 服务器配置
 
