@@ -1,7 +1,9 @@
 /**
  * Certificate Authority & server/client certificate management.
  *
- * Uses node-forge (pure JS, no native deps) to:
+ * Key generation uses Node.js native crypto (OpenSSL-backed, ~10ms per key).
+ * Certificate creation/signing uses node-forge.
+ *
  *  1. Generate a self-signed Root CA (cached on disk)
  *  2. Issue a server certificate for the VPN endpoint
  *  3. Issue a client certificate (embedded in .mobileconfig)
@@ -11,6 +13,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const forge = require('node-forge');
 const config = require('../config');
 
@@ -28,14 +31,27 @@ const CA_CN = 'WKT6-2 Root CA';
 
 /**
  * Generate a key pair + certificate.
+ *
+ * Key pairs are generated via Node.js native crypto (fast OpenSSL),
+ * then imported into node-forge for certificate creation.
+ *
  * @param {object} opts - subject info, issuer cert (for signing), isCA
  * @returns {{cert, key}} forge cert and key objects
  */
 function generateCertificate(opts) {
-  const keyPair = forge.pki.rsa.generateKeyPair({ bits: 2048 });
-  const cert = forge.pki.createCertificate();
+  // Fast RSA key generation via native OpenSSL
+  const { privateKey: privPem, publicKey: pubPem } = crypto.generateKeyPairSync('rsa', {
+    modulusLength: 2048,
+    publicKeyEncoding: { type: 'spki', format: 'pem' },
+    privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+  });
 
-  cert.publicKey = keyPair.publicKey;
+  // Import into node-forge format for certificate signing
+  const forgePrivateKey = forge.pki.privateKeyFromPem(privPem);
+  const forgePublicKey = forge.pki.publicKeyFromPem(pubPem);
+
+  const cert = forge.pki.createCertificate();
+  cert.publicKey = forgePublicKey;
   cert.serialNumber = (Math.random() * 1e16).toFixed(0).padStart(16, '0');
 
   const notBefore = new Date();
@@ -63,7 +79,7 @@ function generateCertificate(opts) {
       { name: 'keyUsage', keyCertSign: true, digitalSignature: true, critical: true },
       { name: 'subjectKeyIdentifier' },
     ]);
-    cert.sign(keyPair.privateKey, forge.md.sha256());
+    cert.sign(forgePrivateKey, forge.md.sha256.create());
   } else {
     cert.setIssuer(opts.issuerCert.subject.attributes);
     const exts = [
@@ -78,10 +94,10 @@ function generateCertificate(opts) {
       { name: 'subjectKeyIdentifier' },
     ];
     cert.setExtensions(exts);
-    cert.sign(opts.issuerKey, forge.md.sha256());
+    cert.sign(opts.issuerKey, forge.md.sha256.create());
   }
 
-  return { cert, key: keyPair.privateKey };
+  return { cert, key: forgePrivateKey };
 }
 
 /** Initialize all certificates if they don't exist yet */

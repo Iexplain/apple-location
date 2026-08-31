@@ -5,13 +5,8 @@ node_modules/
 .env
 .env.local
 
-# Database
-server/data/*.db
-server/data/*.db-journal
-
-# Certificates (generated, do not commit)
-server/data/certs/
-server/data/keys/
+# Database & runtime data (auto-created on first run)
+server/data/
 
 # OS
 .DS_Store
