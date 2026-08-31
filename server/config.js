@@ -1,6 +1,6 @@
 /**
- * Server configuration
- * Reads from environment variables with sensible defaults.
+ * Server configuration — personal single-user mode.
+ * No JWT, no admin, just the essentials.
  */
 require('dotenv').config();
 const path = require('path');
@@ -8,11 +8,6 @@ const fs = require('fs');
 
 const config = {
   port: parseInt(process.env.PORT, 10) || 3000,
-
-  jwt: {
-    secret: process.env.JWT_SECRET || 'dev-secret-change-me',
-    expiresIn: '7d',
-  },
 
   vpn: {
     serverAddress: process.env.VPN_SERVER_ADDRESS || 'vpn.example.com',
@@ -28,11 +23,6 @@ const config = {
     validityDays: parseInt(process.env.CERT_VALIDITY_DAYS, 10) || 3650,
   },
 
-  admin: {
-    username: process.env.ADMIN_USERNAME || 'admin',
-    password: process.env.ADMIN_PASSWORD || 'admin123',
-  },
-
   paths: {
     root: path.join(__dirname, '..'),
     data: path.join(__dirname, 'data'),
@@ -43,17 +33,9 @@ const config = {
   },
 };
 
-/** Ensure required directories exist */
 function ensureDirs() {
-  const dirs = [
-    config.paths.data,
-    config.paths.certs,
-    config.paths.keys,
-  ];
-  for (const dir of dirs) {
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
+  for (const dir of [config.paths.data, config.paths.certs, config.paths.keys]) {
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   }
 }
 

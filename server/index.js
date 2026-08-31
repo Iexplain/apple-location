@@ -1,5 +1,5 @@
 /**
- * Express server entry point.
+ * Express server — personal single-user mode, no auth.
  *
  * Serves:
  *  - Static frontend from /public
@@ -9,11 +9,9 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const fs = require('fs');
 const config = require('./config');
 const certs = require('./utils/certificates');
 
-// Initialize certificates on startup
 certs.initCertificates();
 
 const app = express();
@@ -24,10 +22,8 @@ app.use(express.urlencoded({ extended: true }));
 
 // --- API routes ---
 const profileRoutes = require('./routes/profile');
-app.use('/api/auth', require('./routes/auth'));
 app.use('/api/location', require('./routes/location'));
 app.use('/api/favorites', require('./routes/favorites'));
-app.use('/api/membership', require('./routes/membership'));
 app.use('/api/vpn', profileRoutes);
 app.use('/api/certificate', profileRoutes.certRouter);
 
@@ -39,7 +35,7 @@ app.get('/api/health', (req, res) => {
 // --- Static frontend ---
 app.use(express.static(config.paths.public));
 
-// SPA fallback: serve index.html for non-API routes
+// SPA fallback
 app.get('*', (req, res) => {
   if (req.path.startsWith('/api/')) {
     return res.status(404).json({ error: 'Not found' });
@@ -47,7 +43,6 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(config.paths.public, 'index.html'));
 });
 
-// --- Error handler ---
 app.use((err, req, res, next) => {
   console.error('[error]', err.message);
   res.status(500).json({ error: '服务器内部错误' });

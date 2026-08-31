@@ -23,14 +23,9 @@ function esc(str) {
 /**
  * Build the .mobileconfig plist XML string.
  *
- * @param {object} opts
- * @param {string} opts.username - username (used in LocalIdentifier)
- * @param {number} [opts.latitude]  - target latitude  (informational, stored server-side)
- * @param {number} [opts.longitude] - target longitude (informational, stored server-side)
  * @returns {string} plist XML
  */
-function buildMobileConfig(opts = {}) {
-  const username = opts.username || 'user';
+function buildMobileConfig() {
   const now = new Date().toISOString();
 
   // --- gather certificate data ---
@@ -113,7 +108,7 @@ function buildMobileConfig(opts = {}) {
 				<key>RemoteIdentifier</key>
 				<string>${esc(remoteId)}</string>
 				<key>LocalIdentifier</key>
-				<string>${esc(username + '@' + remoteId)}</string>
+				<string>${esc('client@' + remoteId)}</string>
 				<key>AuthenticationMethod</key>
 				<string>Certificate</string>
 				<key>ServerCertificateIssuerCommonName</key>

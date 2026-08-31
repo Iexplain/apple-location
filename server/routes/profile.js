@@ -1,59 +1,40 @@
 /**
- * Profile download routes.
+ * Profile download routes — no auth, direct download.
  *
- * Exports two routers:
- *  - vpnRouter   → mount at /api/vpn
+ *  vpnRouter → mount at /api/vpn
  *      GET /profile        → .mobileconfig (IKEv2 + Root CA + client cert)
- *      GET /server-bundle  → server cert + key + CA (admin only, for strongSwan)
+ *      GET /server-bundle  → server cert + key + CA (for strongSwan)
  *
- *  - certRouter   → mount at /api/certificate
+ *  certRouter → mount at /api/certificate
  *      GET /               → Root CA certificate (.cer)
  */
 const express = require('express');
 const forge = require('node-forge');
-const db = require('../db');
-const config = require('../config');
-const { authRequired } = require('../middleware/auth');
 const certs = require('../utils/certificates');
 const { buildMobileConfig } = require('../utils/mobileconfig');
 
-// ── VPN router (mount at /api/vpn) ──
+// ── VPN router ──
 const vpnRouter = express.Router();
 
 // GET /api/vpn/profile — download .mobileconfig
-vpnRouter.get('/profile', authRequired, (req, res) => {
-  const m = db.prepare('SELECT * FROM memberships WHERE user_id = ?').get(req.user.id);
-  if (!m || !m.is_active) {
-    return res.status(403).json({ error: '会员未激活，无法下载配置' });
-  }
-  if (m.expire_at && new Date(m.expire_at) < new Date()) {
-    return res.status(403).json({ error: '会员已过期' });
-  }
-
-  const user = db.prepare('SELECT username FROM users WHERE id = ?').get(req.user.id);
-  const username = user ? user.username : 'user';
-
-  const plist = buildMobileConfig({ username });
-
+vpnRouter.get('/profile', (req, res) => {
+  const plist = buildMobileConfig();
   res.setHeader('Content-Type', 'application/x-apple-aspen-config');
   res.setHeader('Content-Disposition', 'attachment; filename="wkt6-location.mobileconfig"');
   res.send(plist);
 });
 
-// GET /api/vpn/server-bundle — admin only: get server cert/key/CA for strongSwan
-vpnRouter.get('/server-bundle', authRequired, (req, res) => {
-  if (req.user.username !== config.admin.username) {
-    return res.status(403).json({ error: '无权限' });
-  }
+// GET /api/vpn/server-bundle — get server cert/key/CA for strongSwan
+vpnRouter.get('/server-bundle', (req, res) => {
   const bundle = certs.getServerCertBundle();
   res.json(bundle);
 });
 
-// ── Certificate router (mount at /api/certificate) ──
+// ── Certificate router ──
 const certRouter = express.Router();
 
-// GET /api/certificate — download Root CA certificate (.cer)
-certRouter.get('/', authRequired, (req, res) => {
+// GET /api/certificate — download Root CA .cer
+certRouter.get('/', (req, res) => {
   const pem = certs.getCACertPEM();
   const cert = forge.pki.certificateFromPem(pem);
   const der = Buffer.from(
