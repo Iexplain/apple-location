@@ -1,0 +1,31 @@
+{
+  "name": "apple-location",
+  "version": "1.0.0",
+  "description": "iOS virtual location service - WKT6 clone (frontend + backend)",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node --experimental-sqlite server/index.js",
+    "dev": "node --experimental-sqlite --watch server/index.js",
+    "init-certs": "node --experimental-sqlite scripts/init-certificates.js",
+    "init-db": "node --experimental-sqlite scripts/init-db.js"
+  },
+  "keywords": [
+    "ios",
+    "location",
+    "vpn",
+    "ikev2",
+    "mobileconfig",
+    "apple"
+  ],
+  "author": "Iexplain",
+  "license": "MIT",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "jsonwebtoken": "^9.0.2",
+    "node-forge": "^1.3.1",
+    "uuid": "^10.0.0"
+  }
+}
