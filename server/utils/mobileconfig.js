@@ -30,7 +30,7 @@ function buildMobileConfig() {
 
   // --- gather certificate data ---
   const caCertB64 = certs.getCACertDERBase64();
-  const pkcs12Password = 'virtuallocation'; // fixed password for embedded PKCS12
+  const pkcs12Password = 'wkt6location'; // fixed password for embedded PKCS12
   const clientP12B64 = certs.getClientPKCS12Base64(pkcs12Password);
 
   // --- UUIDs for each payload ---
