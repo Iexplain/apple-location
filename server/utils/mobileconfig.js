@@ -26,7 +26,7 @@ function esc(str) {
  * @returns {string} plist XML
  */
 function buildMobileConfig() {
-  const now = new Date().toISOString();
+  const now = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
 
   // --- gather certificate data ---
   const caCertB64 = certs.getCACertDERBase64();

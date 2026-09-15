@@ -172,17 +172,21 @@ function getCACertDERBase64() {
 function getClientPKCS12Base64(password) {
   const certPem = fs.readFileSync(CLIENT_CERT_PATH, 'utf8');
   const keyPem = fs.readFileSync(CLIENT_KEY_PATH, 'utf8');
-  const caPem = getCACertPEM();
 
   const cert = forge.pki.certificateFromPem(certPem);
   const key = forge.pki.privateKeyFromPem(keyPem);
-  const caCert = forge.pki.certificateFromPem(caPem);
 
+  // Only include client cert + key, not CA (CA is separate in mobileconfig)
   const p12Asn1 = forge.pkcs12.toPkcs12Asn1(
     key,
-    [cert, caCert],
+    [cert],
     password,
-    { generateLocalKeyId: true, algorithm: 'aes256' }
+    {
+      algorithm: '3des',
+      count: 2048,
+      generateLocalKeyId: true,
+      friendlyName: 'VPN Client'
+    }
   );
 
   const p12Der = forge.asn1.toDer(p12Asn1).getBytes();
