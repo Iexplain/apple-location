@@ -80,5 +80,5 @@ const server = https.createServer(
 );
 
 server.listen(8445, '0.0.0.0', () => {
-  console.log('[wloc] fake Apple location API listening on 0.0.0.0:8445 (DNAT from 10.8.1.1:443)');
+  console.log('[wloc] fake location API listening on 0.0.0.0:8445 (DNAT from 10.8.1.1:443)');
 });

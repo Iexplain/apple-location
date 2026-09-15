@@ -20,7 +20,7 @@ const vpnRouter = express.Router();
 vpnRouter.get('/profile', (req, res) => {
   const plist = buildMobileConfig();
   res.setHeader('Content-Type', 'application/x-apple-aspen-config');
-  res.setHeader('Content-Disposition', 'attachment; filename="wkt6-location.mobileconfig"');
+  res.setHeader('Content-Disposition', 'attachment; filename="virtual-location.mobileconfig"');
   res.send(plist);
 });
 
@@ -43,7 +43,7 @@ certRouter.get('/', (req, res) => {
   );
 
   res.setHeader('Content-Type', 'application/x-x509-ca-cert');
-  res.setHeader('Content-Disposition', 'attachment; filename="wkt6-root-ca.cer"');
+  res.setHeader('Content-Disposition', 'attachment; filename="virtual-location-root-ca.cer"');
   res.send(der);
 });
 

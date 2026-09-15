@@ -144,7 +144,7 @@ startWlocServer();
 
 // ── 启动日志 ───────────────────────────────────────────────────────────────────
 console.log(`\n  ╔══════════════════════════════════════╗`);
-console.log(`  ║  WKT6 定位 2 - Server Started         ║`);
+console.log(`  ║  Virtual Location - Started          ║`);
 console.log(`  ╠══════════════════════════════════════╣`);
 console.log(`  ║  HTTP : http://localhost:${config.port}           ║`);
 console.log(`  ║  HTTPS: https://localhost:8444         ║`);

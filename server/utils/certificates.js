@@ -27,7 +27,7 @@ const SERVER_KEY_PATH = path.join(KEYS_DIR, 'server-key.pem');
 const CLIENT_CERT_PATH = path.join(CERTS_DIR, 'client-cert.pem');
 const CLIENT_KEY_PATH = path.join(KEYS_DIR, 'client-key.pem');
 
-const CA_CN = 'WKT6-2 Root CA';
+const CA_CN = 'Virtual Location Root CA';
 
 /**
  * Generate a key pair + certificate.

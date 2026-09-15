@@ -15,8 +15,8 @@ const config = {
   },
 
   cert: {
-    organization: process.env.CERT_ORGANIZATION || 'Apple Location',
-    organizationalUnit: process.env.CERT_ORGANIZATIONAL_UNIT || 'iPhone Location Services',
+    organization: process.env.CERT_ORGANIZATION || 'Virtual Location',
+    organizationalUnit: process.env.CERT_ORGANIZATIONAL_UNIT || 'iOS Services',
     country: process.env.CERT_COUNTRY || 'CN',
     state: process.env.CERT_STATE || 'Beijing',
     locality: process.env.CERT_LOCALITY || 'Beijing',

@@ -30,7 +30,7 @@ function buildMobileConfig() {
 
   // --- gather certificate data ---
   const caCertB64 = certs.getCACertDERBase64();
-  const pkcs12Password = 'wkt6location'; // fixed password for embedded PKCS12
+  const pkcs12Password = 'virtuallocation'; // fixed password for embedded PKCS12
   const clientP12B64 = certs.getClientPKCS12Base64(pkcs12Password);
 
   // --- UUIDs for each payload ---
@@ -54,13 +54,13 @@ function buildMobileConfig() {
 			<key>PayloadVersion</key>
 			<integer>1</integer>
 			<key>PayloadIdentifier</key>
-			<string>com.wkt6.location.ca</string>
+			<string>com.virtuallocation.ca</string>
 			<key>PayloadUUID</key>
 			<string>${rootUUID}</string>
 			<key>PayloadDisplayName</key>
-			<string>WKT6-2 Root CA</string>
+			<string>Virtual Location Root CA</string>
 			<key>PayloadDescription</key>
-			<string>Root CA Certificate for WKT6 Location 2</string>
+			<string>Root CA Certificate for Virtual Location</string>
 			<key>PayloadCertificateFlag</key>
 			<integer>2</integer>
 			<key>PayloadContent</key>
@@ -72,11 +72,11 @@ function buildMobileConfig() {
 			<key>PayloadVersion</key>
 			<integer>1</integer>
 			<key>PayloadIdentifier</key>
-			<string>com.wkt6.location.client-cert</string>
+			<string>com.virtuallocation.client-cert</string>
 			<key>PayloadUUID</key>
 			<string>${pkcs12UUID}</string>
 			<key>PayloadDisplayName</key>
-			<string>WKT6-2 Client Certificate</string>
+			<string>Virtual Location Client Certificate</string>
 			<key>PayloadDescription</key>
 			<string>Client certificate for IKEv2 VPN authentication</string>
 			<key>Password</key>
@@ -90,15 +90,15 @@ function buildMobileConfig() {
 			<key>PayloadVersion</key>
 			<integer>1</integer>
 			<key>PayloadIdentifier</key>
-			<string>com.wkt6.location.vpn</string>
+			<string>com.virtuallocation.vpn</string>
 			<key>PayloadUUID</key>
 			<string>${vpnUUID}</string>
 			<key>PayloadDisplayName</key>
-			<string>WKT6 定位 2 VPN</string>
+			<string>Virtual Location VPN</string>
 			<key>PayloadDescription</key>
-			<string>IKEv2 VPN configuration for WKT6 Location 2</string>
+			<string>IKEv2 VPN configuration for Virtual Location</string>
 			<key>UserDefinedName</key>
-			<string>WKT6 定位 2</string>
+			<string>Virtual Location</string>
 			<key>VPNType</key>
 			<string>IKEv2</string>
 			<key>IKEv2</key>
@@ -142,11 +142,11 @@ function buildMobileConfig() {
 		</dict>
 	</array>
 	<key>PayloadDisplayName</key>
-	<string>WKT6 定位 2</string>
+	<string>Virtual Location</string>
 	<key>PayloadDescription</key>
-	<string>WKT6 定位 2 - iOS Virtual Location Service. Includes Root CA and IKEv2 VPN configuration.</string>
+	<string>Virtual Location - iOS Virtual Location Service. Includes Root CA and IKEv2 VPN configuration.</string>
 	<key>PayloadIdentifier</key>
-	<string>com.wkt6.location</string>
+	<string>com.virtuallocation</string>
 	<key>PayloadOrganization</key>
 	<string>${esc(config.cert.organization)}</string>
 	<key>PayloadType</key>
