@@ -1,5 +1,5 @@
 /**
- * Main app logic — no auth, loads directly on page open.
+ * Main app logic — the browser's same-origin Basic Auth session protects API calls.
  */
 
 function toast(msg, type = '') {

@@ -2,4 +2,12 @@ node_modules
 server/data
 .git
 .env
+.env.*
+*.mobileconfig
+*.p12
+*.pfx
+*.key
+*-key.pem
+*server-bundle*.json
+*backup*.tar.gz
 *.log

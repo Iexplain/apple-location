@@ -108,7 +108,7 @@ function buildMobileConfig() {
 				<key>RemoteIdentifier</key>
 				<string>${esc(remoteId)}</string>
 				<key>LocalIdentifier</key>
-				<string>${esc('client@' + remoteId)}</string>
+				<string>${esc(certs.CLIENT_CN)}</string>
 				<key>AuthenticationMethod</key>
 				<string>Certificate</string>
 				<key>ServerCertificateIssuerCommonName</key>

@@ -1,7 +1,8 @@
 /**
  * SQLite database for personal single-user mode.
  *
- * No users, no auth — just location settings and favorites.
+ * The web layer provides single-user Basic Auth; the database stores only
+ * location settings and favorites.
  * Uses Node.js 22+ built-in `node:sqlite` (--experimental-sqlite).
  */
 const { DatabaseSync } = require('node:sqlite');
@@ -12,13 +13,6 @@ const db = new DatabaseSync(config.paths.db);
 db.exec('PRAGMA foreign_keys = ON');
 
 function initDB() {
-  // Clean up old multi-user tables if upgrading from v1 (harmless if absent)
-  db.exec(`
-    DROP TABLE IF EXISTS users;
-    DROP TABLE IF EXISTS memberships;
-    DROP TABLE IF EXISTS activation_codes;
-  `);
-
   // Create tables only if missing — never drop, so saved data survives restarts.
   db.exec(`
     CREATE TABLE IF NOT EXISTS location (

@@ -1,181 +1,172 @@
-# 部署指南
+# 部署指南（公网 IP 版）
+
+本项目可以直接使用阿里云公网 IP，不需要购买域名。网页和描述文件通过 Node 的 `8444` HTTPS 端口提供，TLS 证书由项目自己的私有 Root CA 签发。
 
 ## 前提条件
 
-- Node.js 18+ 
-- 一台公网服务器（用于 VPN 服务器，需要公网 IP）
-- 一个域名（指向你的服务器，用于 HTTPS 和 VPN）
+- Node.js 22+
+- 阿里云公网 IP
+- 安全组开放 TCP `8444`、UDP `500`、UDP `4500`
+- 服务器已安装 strongSwan、dnsmasq 和 iptables
 
-> **iOS 限制**：描述文件必须通过 HTTPS 下载。VPN 服务器证书的 CN/SAN 必须匹配你的域名。
-
----
-
-## 方式一：直接部署（Node.js + Caddy/Nginx 反向代理）
-
-### 1. 安装依赖
+## 安装和配置
 
 ```bash
 git clone https://github.com/Iexplain/apple-location.git
 cd apple-location
-npm install
-```
-
-### 2. 配置环境变量
-
-```bash
+npm ci
 cp .env.example .env
-nano .env
 ```
 
-关键配置：
+编辑 `.env`，把 VPN 地址设置为公网 IP：
 
 ```env
+NODE_ENV=production
 PORT=3000
-JWT_SECRET=your-random-secret-string
-VPN_SERVER_ADDRESS=vpn.yourdomain.com
-VPN_REMOTE_ID=vpn.yourdomain.com
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=your-admin-password
+HTTP_HOST=127.0.0.1
+HTTPS_HOST=0.0.0.0
+HTTPS_PORT=8444
+WLOC_PORT=8445
+VPN_SERVER_ADDRESS=203.0.113.10
+VPN_REMOTE_ID=203.0.113.10
+CERT_ORGANIZATION=Virtual Location
+CERT_ORGANIZATIONAL_UNIT=iOS Services
+CERT_COUNTRY=CN
+CERT_STATE=Beijing
+CERT_LOCALITY=Beijing
+CERT_VALIDITY_DAYS=3650
+SERVER_BUNDLE_TOKEN=替换为随机长令牌
+ADMIN_USERNAME=替换为私有管理用户名
+ADMIN_PASSWORD=替换为至少16位的随机密码
 ```
 
-### 3. 启动服务
+`203.0.113.10` 是不可路由的文档示例地址，必须替换成自己的公网 IP。
+`SERVER_BUNDLE_TOKEN` 用于保护返回 VPN 服务器私钥的接口。生产环境不要留空，也不要把真实值提交到 Git。
+网页和管理 API 还需要 `ADMIN_USERNAME` / `ADMIN_PASSWORD` Basic Auth；生产环境用户名必须显式配置，密码至少 16 个字符。
+程序会拒绝使用 `replace-with-...` 等文档占位符启动生产服务。
+
+## 启动
 
 ```bash
-# 前台运行（测试）
+npm run init-certs
+npm run init-db
 npm start
+```
 
-# 后台运行（推荐用 PM2）
-npm install -g pm2
-pm2 start server/index.js --name apple-location
+启动时会自动检查并生成四类证书：
+
+```text
+server/data/certs/ca-cert.pem
+server/data/certs/server-cert.pem
+server/data/certs/client-cert.pem
+server/data/certs/wloc-cert.pem
+```
+
+WLOC 证书的 SAN 必须包含：
+
+```text
+gs-loc.apple.com
+gs-loc-new.apple.com
+gs-loc-cn.apple.com
+gsp-ssl.ls.apple.com
+bluedot.is.autonavi.com
+bluedot.is.autonavi.com.gds.alibabadns.com
+```
+
+生产环境可以使用 PM2：
+
+```bash
+pm2 start ecosystem.config.js
 pm2 save
 pm2 startup
 ```
 
-### 4. 配置 HTTPS 反向代理（Caddy）
+## 访问地址
 
-Caddy 会自动申请 Let's Encrypt 证书，最简单：
+手机使用 Wi-Fi 或流量访问：
+
+```text
+https://<你的公网IP>:8444
+```
+
+首次访问自签名 HTTPS 证书时，Safari 会显示证书警告。确认地址正确后继续访问，再下载 `virtual-location.mobileconfig`。
+
+网页和管理 API 受 Basic Auth 保护；按浏览器提示填写 `.env` 中的
+`ADMIN_USERNAME` / `ADMIN_PASSWORD`。只有 `/api/health` 对外公开。
+
+安装描述文件后：
+
+1. 在“VPN 与设备管理”中安装描述文件。
+2. 在“证书信任设置”中完全信任 `Virtual Location Root CA`。
+3. 连接 `Virtual Location` VPN。
+
+## 定位劫持网络
+
+VPN 内部地址使用 `10.8.1.0/24`：
+
+```text
+服务器内部地址：10.8.1.1
+客户端地址池：10.8.1.2 - 10.8.1.254
+客户端 DNS：10.8.1.1
+WLOC 服务：127.0.0.1:8445
+```
+
+dnsmasq 将以下 Apple 定位域名解析到 `10.8.1.1`：
+
+```text
+gs-loc.apple.com
+gs-loc-new.apple.com
+gs-loc-cn.apple.com
+gsp-ssl.ls.apple.com
+bluedot.is.autonavi.com
+bluedot.is.autonavi.com.gds.alibabadns.com
+```
+
+iptables 将 VPN 客户端访问的 `10.8.1.1:443` DNAT 到 `127.0.0.1:8445`。如果服务器还运行 Docker，这条规则必须位于 Docker 的 `PREROUTING ... -j DOCKER` 规则之前，否则请求可能被 Docker 的公网 443 映射抢走。TCP `8445` 不需要对公网开放。
+
+## 验证
 
 ```bash
-# 安装 Caddy
-sudo apt install caddy
-
-# 编辑配置
-sudo nano /etc/caddy/Caddyfile
+curl http://127.0.0.1:3000/api/health
+curl -k https://127.0.0.1:8444/api/health
+ss -ltnp | grep -E ':(3000|8444|8445)\\b'
+dig @10.8.1.1 gs-loc.apple.com
+dig @10.8.1.1 gs-loc-cn.apple.com
+swanctl --list-conns
+swanctl --list-sas
 ```
 
-```caddyfile
-vpn.yourdomain.com {
-    reverse_proxy localhost:3000
-}
-```
+健康检查返回的 `wloc` 必须为 `true`（否则返回 HTTP 503）。iPhone 连接 VPN 后，`swanctl --list-sas` 应出现活动会话，PM2 日志应出现 `[wloc]` 请求记录。
+
+## 证书和数据备份
 
 ```bash
-sudo systemctl restart caddy
+tar -czf backup.tar.gz server/data/ .env
 ```
 
-### 5. 验证
+尤其要备份：
 
-- 访问 `https://vpn.yourdomain.com` → 看到 WKT6 定位 2 页面
-- 访问 `https://vpn.yourdomain.com/api/health` → 返回 `{"status":"ok"}`
-
----
-
-## 方式二：Docker 部署
-
-### 1. 创建 Dockerfile
-
-在项目根目录创建：
-
-```dockerfile
-FROM node:20-slim
-WORKDIR /app
-COPY package*.json ./
-RUN npm install --production
-COPY . .
-EXPOSE 3000
-CMD ["node", "server/index.js"]
+```text
+server/data/keys/ca-key.pem
+server/data/keys/server-key.pem
+server/data/keys/client-key.pem
+server/data/keys/wloc-key.pem
+server/data/app.db
 ```
 
-### 2. 构建并运行
+不要删除现有 Root CA。重新生成 Root CA 会使已经安装的 iPhone 描述文件失效。
 
-```bash
-docker build -t apple-location .
-docker run -d \
-  --name apple-location \
-  -p 3000:3000 \
-  -v $(pwd)/data:/app/server/data \
-  -e JWT_SECRET=your-secret \
-  -e VPN_SERVER_ADDRESS=vpn.yourdomain.com \
-  --restart unless-stopped \
-  apple-location
-```
+`.env`、`server/data/`、下载后的 `.mobileconfig` 和任何导出的 PKCS#12/证书包都属于敏感文件。`.mobileconfig` 内含 VPN 客户端私钥，不能公开分享。
 
-### 3. 配合 Caddy/Nginx 做 HTTPS
+## 安全边界
 
-同方式一第 4 步。
+- TCP `8444` 是网页和 profile 下载入口。
+- TCP `3000` 应只允许本机访问或由安全组限制。
+- TCP `8445` 只监听 `127.0.0.1`，不应开放公网。
+- `/api/vpn/server-bundle` 必须使用 `Authorization: Bearer <SERVER_BUNDLE_TOKEN>`。
+- `server-bundle` 包含服务器私钥，只能在可信环境中调用。
+- 仓库只应保存占位符；实际用户名、密码和令牌只能放在未被 Git 跟踪的 `.env` 中。
 
----
+## 限制
 
-## 环境变量说明
-
-| 变量 | 默认值 | 说明 |
-|---|---|---|
-| `PORT` | 3000 | 服务端口 |
-| `JWT_SECRET` | dev-secret-change-me | JWT 签名密钥（**必须修改**） |
-| `VPN_SERVER_ADDRESS` | vpn.example.com | VPN 服务器域名/IP |
-| `VPN_REMOTE_ID` | 同 VPN_SERVER_ADDRESS | IKEv2 RemoteIdentifier |
-| `CERT_ORGANIZATION` | Apple Location | 证书组织名 |
-| `CERT_VALIDITY_DAYS` | 3650 | 证书有效期（天） |
-| `ADMIN_USERNAME` | admin | 管理员用户名 |
-| `ADMIN_PASSWORD` | admin123 | 管理员密码 |
-
----
-
-## 部署后操作
-
-### 1. 注册管理员账号
-
-访问网站 → 注册 → 用户名填写你在 `.env` 中设置的 `ADMIN_USERNAME`。
-
-### 2. 生成激活码
-
-```bash
-curl -X POST https://vpn.yourdomain.com/api/membership/codes \
-  -H "Authorization: Bearer <admin-token>" \
-  -H "Content-Type: application/json" \
-  -d '{"durationDays": 30, "count": 5}'
-```
-
-### 3. 获取服务器证书包
-
-部署 VPN 服务器时需要用到：
-
-```bash
-curl https://vpn.yourdomain.com/api/vpn/server-bundle \
-  -H "Authorization: Bearer <admin-token>"
-```
-
-返回包含：
-- `serverCert` — 服务器证书 PEM（部署到 strongSwan）
-- `serverKey` — 服务器私钥 PEM
-- `caCert` — Root CA 证书 PEM
-
-### 4. 配置 VPN 服务器
-
-详见 [VPN_SETUP.md](VPN_SETUP.md)
-
----
-
-## 数据备份
-
-数据库和证书都在 `server/data/` 目录下：
-
-```bash
-# 备份
-tar -czf backup.tar.gz server/data/
-
-# 恢复
-tar -xzf backup.tar.gz
-```
-
-> **重要**：证书的私钥文件一旦丢失，所有已安装描述文件的 iPhone 将无法连接 VPN。请妥善备份 `server/data/keys/` 目录。
+VPN 和 WLOC 可以修改上游响应中的 Wi-Fi 和部分蜂窝位置，但不能直接修改 GPS，也不保证覆盖系统缓存、第三方 App 自有接口或 Apple 的其他校验。

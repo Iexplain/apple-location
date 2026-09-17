@@ -1,5 +1,5 @@
 /**
- * Profile download routes — no auth, direct download.
+ * Profile download routes — protected by the app middleware.
  *
  *  vpnRouter → mount at /api/vpn
  *      GET /profile        → .mobileconfig (IKEv2 + Root CA + client cert)

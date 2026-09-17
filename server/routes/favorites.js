@@ -1,11 +1,12 @@
 /**
- * Favorites routes — no auth, no user_id.
+ * Favorites routes — single-user data, protected by the app middleware.
  *   GET    /api/favorites       → list all
  *   POST   /api/favorites       → add
  *   DELETE /api/favorites/:id    → delete
  */
 const express = require('express');
 const db = require('../db');
+const { validateLocation } = require('../utils/location');
 
 const router = express.Router();
 
@@ -17,27 +18,36 @@ router.get('/', (req, res) => {
 
 // POST /api/favorites
 router.post('/', (req, res) => {
-  const { name, latitude, longitude, altitude = 0, accuracy = 65 } = req.body;
+  const { name } = req.body || {};
 
-  if (!name || typeof latitude !== 'number' || typeof longitude !== 'number') {
-    return res.status(400).json({ error: '名称、纬度、经度不能为空' });
+  if (typeof name !== 'string' || !name.trim()) {
+    return res.status(400).json({ error: '位置名称不能为空' });
   }
+  if (name.trim().length > 120) {
+    return res.status(400).json({ error: '位置名称不能超过 120 个字符' });
+  }
+  const location = validateLocation(req.body);
+  if (location.error) return res.status(400).json({ error: location.error });
+  const { latitude, longitude, altitude, accuracy } = location;
+
+  const normalizedName = name.trim();
 
   const info = db.prepare(`
     INSERT INTO favorites (name, latitude, longitude, altitude, accuracy)
     VALUES (?, ?, ?, ?, ?)
-  `).run(name, latitude, longitude, altitude, accuracy);
+  `).run(normalizedName, latitude, longitude, altitude, accuracy);
 
   res.json({
     id: Number(info.lastInsertRowid),
-    name, latitude, longitude, altitude, accuracy,
+    name: normalizedName, latitude, longitude, altitude, accuracy,
     message: '收藏成功',
   });
 });
 
 // DELETE /api/favorites/:id
 router.delete('/:id', (req, res) => {
-  db.prepare('DELETE FROM favorites WHERE id = ?').run(req.params.id);
+  const info = db.prepare('DELETE FROM favorites WHERE id = ?').run(req.params.id);
+  if (Number(info.changes) === 0) return res.status(404).json({ error: '收藏不存在' });
   res.json({ message: '已删除' });
 });
 

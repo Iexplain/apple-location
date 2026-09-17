@@ -10,6 +10,8 @@ module.exports = {
     env: {
       NODE_ENV: 'production',
       PORT: 3000,
+      HTTPS_PORT: 8444,
+      WLOC_PORT: 8445,
     },
     max_memory_restart: '200M',
     restart_delay: 3000,

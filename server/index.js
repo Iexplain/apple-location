@@ -14,18 +14,25 @@ const path = require('path');
 const cors = require('cors');
 const config = require('./config');
 const certs = require('./utils/certificates');
+const { createBasicAuth } = require('./utils/auth');
 const db = require('./db');
-const bplistParser = require('bplist-parser');
-const bplistCreator = require('bplist-creator');
+const { createWlocHandler } = require('./utils/wloc-handler');
+
+const httpsServers = [];
+let wlocReady = false;
 
 // ── Certificates ──────────────────────────────────────────────────────────────
 certs.initCertificates();
 
 // ── Express app ───────────────────────────────────────────────────────────────
 const app = express();
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+if (config.corsOrigin) app.use(cors({ origin: config.corsOrigin }));
+app.use(express.json({ limit: '32kb' }));
+app.use(express.urlencoded({ extended: true, limit: '32kb' }));
+
+// The web UI and API are private except for the non-sensitive health endpoint.
+// WLOC is a separate localhost-only HTTPS listener and is not affected.
+app.use(createBasicAuth({ ...config.auth, token: config.serverBundleToken }));
 
 const profileRoutes = require('./routes/profile');
 app.use('/api/location', require('./routes/location'));
@@ -34,7 +41,12 @@ app.use('/api/vpn', profileRoutes);
 app.use('/api/certificate', profileRoutes.certRouter);
 
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', time: new Date().toISOString() });
+  const status = wlocReady ? 'ok' : 'degraded';
+  res.status(wlocReady ? 200 : 503).json({
+    status,
+    wloc: wlocReady,
+    time: new Date().toISOString(),
+  });
 });
 
 app.use(express.static(config.paths.public));
@@ -52,18 +64,17 @@ app.use((err, req, res, next) => {
 });
 
 // ── :3000 HTTP ────────────────────────────────────────────────────────────────
-const httpServer = app.listen(config.port, () => {
-  console.log(`[http]  listening on :${config.port}`);
+const httpServer = app.listen(config.port, config.httpHost, () => {
+  console.log(`[http]  listening on ${config.httpHost}:${config.port}`);
 });
 
 // ── :8444 HTTPS reverse proxy → :3000 ────────────────────────────────────────
 function startHttpsProxy() {
-  const certDir = path.join(__dirname, '..', 'conf', 'certs');
-  const keyPath  = path.join(certDir, 'server-key.pem');
-  const certPath = path.join(certDir, 'server-cert.pem');
+  const keyPath = config.paths.httpsKey;
+  const certPath = config.paths.httpsCert;
 
   if (!fs.existsSync(keyPath) || !fs.existsSync(certPath)) {
-    console.warn('[https-proxy] cert not found at conf/certs — skipping :8444');
+    console.warn('[https-proxy] HTTPS certificate not found — skipping HTTPS listener');
     return;
   }
 
@@ -72,26 +83,29 @@ function startHttpsProxy() {
     cert: fs.readFileSync(certPath),
   };
 
-  https.createServer(tlsOpts, (req, res) => {
+  const server = https.createServer(tlsOpts, (req, res) => {
     const upstream = http.request(
       { host: '127.0.0.1', port: config.port, path: req.url,
         method: req.method, headers: { ...req.headers, host: `127.0.0.1:${config.port}` } },
       (upRes) => { res.writeHead(upRes.statusCode, upRes.headers); upRes.pipe(res); }
     );
-    upstream.on('error', () => { res.writeHead(502); res.end('bad gateway'); });
+    upstream.on('error', () => { if (!res.headersSent) res.writeHead(502); res.end('bad gateway'); });
     req.pipe(upstream);
-  }).listen(8444, () => console.log('[https-proxy] listening on :8444'));
+  });
+  httpsServers.push(server);
+  server.on('error', (error) => console.error(`[https-proxy] listener error: ${error.message}`));
+  server.listen(config.httpsPort, config.httpsHost, () => console.log(`[https-proxy] listening on ${config.httpsHost}:${config.httpsPort}`));
 }
 
 startHttpsProxy();
 
 // ── :8445 HTTPS fake Apple wloc API ──────────────────────────────────────────
 function startWlocServer() {
-  const keyPath  = path.join(config.paths.keys,  'wloc-key.pem');
-  const certPath = path.join(config.paths.certs, 'wloc-cert.pem');
+  const keyPath = config.paths.wlocKey;
+  const certPath = config.paths.wlocCert;
 
   if (!fs.existsSync(keyPath) || !fs.existsSync(certPath)) {
-    console.warn('[wloc] cert not found — skipping :8445');
+    console.error('[wloc] certificate not found — WLOC listener is unavailable');
     return;
   }
 
@@ -106,38 +120,20 @@ function startWlocServer() {
     ).get();
   }
 
-  https.createServer(tlsOpts, (req, res) => {
-    if (req.method === 'POST' && req.url.startsWith('/location/wloc')) {
-      const chunks = [];
-      req.on('data', c => chunks.push(c));
-      req.on('end', () => {
-        try {
-          const objs   = bplistParser.parseBuffer(Buffer.concat(chunks));
-          const reqObj = (objs && objs[0]) || {};
-          const aps    = Array.isArray(reqObj.ap) ? reqObj.ap : [];
-          const loc    = getLocation();
-          const resp   = {
-            ap: aps.map(ap => ({
-              key:      ap.key || '',
-              latitude: loc.latitude,
-              longitude:loc.longitude,
-              accuracy: Math.round(loc.accuracy || 65),
-              altitude: Math.round(loc.altitude  || 0),
-            })),
-            statusCode: 0,
-          };
-          res.writeHead(200, { 'Content-Type': 'application/x-www-form-urlencoded' });
-          res.end(bplistCreator(resp));
-          console.log(`[wloc] → ${loc.latitude},${loc.longitude} (${aps.length} APs)`);
-        } catch (e) {
-          console.error('[wloc] error:', e.message);
-          res.writeHead(500); res.end();
-        }
-      });
-    } else {
-      res.writeHead(404); res.end();
-    }
-  }).listen(8445, () => console.log('[wloc] listening on :8445 (DNAT from 10.8.1.1:443)'));
+  const server = https.createServer(tlsOpts, createWlocHandler({ getLocation }));
+  httpsServers.push(server);
+  server.on('tlsClientError', (error, socket) => {
+    const sni = socket && socket.servername ? socket.servername : '(unknown SNI)';
+    console.error(`[wloc] TLS client error for ${sni}: ${error.message}`);
+  });
+  server.on('error', (error) => {
+    wlocReady = false;
+    console.error(`[wloc] listener error: ${error.message}`);
+  });
+  server.listen(config.wlocPort, '127.0.0.1', () => {
+    wlocReady = true;
+    console.log(`[wloc] listening on 127.0.0.1:${config.wlocPort} (DNAT from 10.8.1.1:443)`);
+  });
 }
 
 startWlocServer();
@@ -146,15 +142,22 @@ startWlocServer();
 console.log(`\n  ╔══════════════════════════════════════╗`);
 console.log(`  ║  Virtual Location - Started          ║`);
 console.log(`  ╠══════════════════════════════════════╣`);
-console.log(`  ║  HTTP : http://localhost:${config.port}           ║`);
-console.log(`  ║  HTTPS: https://localhost:8444         ║`);
-console.log(`  ║  WLOC : https://localhost:8445         ║`);
+console.log(`  ║  HTTP : http://${config.httpHost}:${config.port}           ║`);
+console.log(`  ║  HTTPS: https://localhost:${config.httpsPort}         ║`);
+console.log(`  ║  WLOC : https://127.0.0.1:${config.wlocPort}         ║`);
 console.log(`  ╚══════════════════════════════════════╝\n`);
 
 // ── 优雅关闭 ───────────────────────────────────────────────────────────────────
 function shutdown(signal) {
   console.log(`\n[${signal}] 正在关闭服务器...`);
-  httpServer.close(() => { console.log('HTTP 已关闭。'); process.exit(0); });
+  const servers = [httpServer, ...httpsServers].filter((server) => server.listening);
+  let remaining = servers.length;
+  const done = () => {
+    remaining -= 1;
+    if (remaining <= 0) process.exit(0);
+  };
+  if (!remaining) process.exit(0);
+  servers.forEach((server) => server.close(done));
   setTimeout(() => process.exit(1), 5000);
 }
 process.on('SIGTERM', () => shutdown('SIGTERM'));

@@ -1,10 +1,11 @@
 /**
- * Location routes — single global location, no auth.
+ * Location routes — single global location (protected by the app middleware).
  *   GET  /api/location  → get current target location
  *   POST /api/location  → save target location
  */
 const express = require('express');
 const db = require('../db');
+const { validateLocation } = require('../utils/location');
 
 const router = express.Router();
 
@@ -16,11 +17,9 @@ router.get('/', (req, res) => {
 
 // POST /api/location
 router.post('/', (req, res) => {
-  const { latitude, longitude, altitude = 0, accuracy = 65 } = req.body;
-
-  if (typeof latitude !== 'number' || typeof longitude !== 'number') {
-    return res.status(400).json({ error: '纬度和经度必须为数字' });
-  }
+  const location = validateLocation(req.body);
+  if (location.error) return res.status(400).json({ error: location.error });
+  const { latitude, longitude, altitude, accuracy } = location;
 
   db.prepare(`
     UPDATE location

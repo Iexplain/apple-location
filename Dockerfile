@@ -11,6 +11,6 @@ COPY . .
 RUN mkdir -p server/data
 VOLUME ["/app/server/data"]
 
-EXPOSE 3000
+EXPOSE 8444
 
 CMD ["node", "--experimental-sqlite", "server/index.js"]

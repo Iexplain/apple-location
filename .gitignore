@@ -3,10 +3,21 @@ node_modules/
 
 # Environment
 .env
-.env.local
+.env.*
+!.env.example
 
 # Database & runtime data (auto-created on first run)
 server/data/
+
+# Exported profiles and private-key bundles
+*.mobileconfig
+*.p12
+*.pfx
+*.key
+*-key.pem
+server-bundle.json
+*server-bundle*.json
+*backup*.tar.gz
 
 # OS
 .DS_Store

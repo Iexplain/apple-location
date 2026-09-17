@@ -1,5 +1,5 @@
 /**
- * API client — no auth, no token.
+ * API client — browser Basic Auth is handled by the same-origin session.
  */
 const API = {
   baseUrl: '/api',

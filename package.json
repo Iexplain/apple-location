@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node --experimental-sqlite server/index.js",
     "dev": "node --experimental-sqlite --watch server/index.js",
+    "test": "node --test",
     "init-certs": "node --experimental-sqlite scripts/init-certificates.js",
     "init-db": "node --experimental-sqlite scripts/init-db.js"
   },
