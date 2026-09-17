@@ -1,0 +1,12 @@
+[Unit]
+Description=apple-location VPN NAT and WLOC interception rules
+Wants=network-online.target strongswan-swanctl.service dnsmasq.service
+After=network-online.target strongswan-swanctl.service dnsmasq.service docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/apple-location-vpn-nat
+
+[Install]
+WantedBy=multi-user.target

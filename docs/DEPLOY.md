@@ -78,7 +78,17 @@ bluedot.is.autonavi.com.gds.alibabadns.com
 ```bash
 pm2 start ecosystem.config.js
 pm2 save
-pm2 startup
+pm2 startup systemd -u root --hp /root
+# 按命令输出执行 systemctl enable pm2-root
+```
+
+`pm2 save` 保存当前进程清单，`pm2-root.service` 负责服务器重启后恢复
+`apple-location`，并在 Node 进程异常退出时自动拉起。确认：
+
+```bash
+systemctl is-enabled pm2-root.service
+systemctl is-active pm2-root.service
+pm2 status
 ```
 
 ## 访问地址
@@ -123,6 +133,20 @@ bluedot.is.autonavi.com.gds.alibabadns.com
 ```
 
 iptables 将 VPN 客户端访问的 `10.8.1.1:443` DNAT 到 `127.0.0.1:8445`。如果服务器还运行 Docker，这条规则必须位于 Docker 的 `PREROUTING ... -j DOCKER` 规则之前，否则请求可能被 Docker 的公网 443 映射抢走。TCP `8445` 不需要对公网开放。
+
+仓库提供了可重复执行的 `scripts/apple-location-vpn-nat.sh` 和
+`conf/vpn-nat.service`。将脚本安装到 `/usr/local/sbin/`、unit 安装到
+`/etc/systemd/system/` 后启用它，可在每次开机时恢复 IP 转发、VPN 客户端
+NAT、WLOC DNAT 和 Docker 规则顺序：
+
+```bash
+sudo install -m 0755 scripts/apple-location-vpn-nat.sh /usr/local/sbin/apple-location-vpn-nat
+sudo install -m 0644 conf/vpn-nat.service /etc/systemd/system/vpn-nat.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now vpn-nat.service
+systemctl is-enabled vpn-nat.service
+systemctl is-active vpn-nat.service
+```
 
 ## 验证
 
