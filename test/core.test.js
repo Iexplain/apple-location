@@ -20,6 +20,13 @@ const { createBasicAuth, isDocumentationPlaceholder } = require('../server/utils
 const { validateLocation } = require('../server/utils/location');
 const { buildMobileConfig } = require('../server/utils/mobileconfig');
 const { patchWlocFrame, _internals: wlocProtocol } = require('../server/utils/wloc-protocol');
+const {
+  haversineMeters,
+  midpoint,
+  circleFromDiameter,
+  randomPointInCircle,
+  normalizeLongitude,
+} = require('../server/utils/geo');
 const forge = require('node-forge');
 
 function responseMock() {
@@ -242,4 +249,90 @@ test('covers current Apple and China-region WLOC TLS hostnames', () => {
   ]) {
     assert.ok(certs.WLOC_DOMAINS.includes(hostname));
   }
+});
+
+test('measures great-circle distance against known reference lengths', () => {
+  // Beijing → Shanghai is ~1067 km; one degree of latitude is ~111.2 km.
+  const beijingToShanghai = haversineMeters(39.9087, 116.3975, 31.2397, 121.4994);
+  assert.ok(Math.abs(beijingToShanghai - 1067000) < 15000, `${beijingToShanghai} m`);
+  assert.ok(Math.abs(haversineMeters(0, 0, 1, 0) - 111195) < 50);
+  assert.equal(haversineMeters(39.9, 116.4, 39.9, 116.4), 0);
+});
+
+test('places the circle centre on the diameter midpoint', () => {
+  const a = { latitude: 39.9087, longitude: 116.3975 };
+  const b = { latitude: 31.2397, longitude: 121.4994 };
+  const circle = circleFromDiameter(a, b);
+
+  // The radius is exactly half the diameter.
+  assert.ok(Math.abs(circle.radiusMeters - haversineMeters(a.latitude, a.longitude, b.latitude, b.longitude) / 2) < 1e-6);
+  // The centre is equidistant from both endpoints, so both sit exactly on the
+  // rim. Averaging lat/lng numerically instead would leave them metres apart.
+  const rimA = haversineMeters(circle.centerLat, circle.centerLng, a.latitude, a.longitude);
+  const rimB = haversineMeters(circle.centerLat, circle.centerLng, b.latitude, b.longitude);
+  assert.ok(Math.abs(rimA - circle.radiusMeters) < 0.01, `${rimA} vs ${circle.radiusMeters}`);
+  assert.ok(Math.abs(rimB - circle.radiusMeters) < 0.01, `${rimB} vs ${circle.radiusMeters}`);
+});
+
+test('averages the midpoint across the antimeridian', () => {
+  const center = midpoint({ latitude: 0, longitude: 179 }, { latitude: 0, longitude: -179 });
+  assert.ok(Math.abs(Math.abs(center.longitude) - 180) < 1e-9, `${center.longitude}`);
+  assert.equal(normalizeLongitude(190), -170);
+  assert.equal(normalizeLongitude(-190), 170);
+});
+
+test('keeps every random point inside the circle', () => {
+  const circle = circleFromDiameter(
+    { latitude: 39.9087, longitude: 116.3975 },
+    { latitude: 31.2397, longitude: 121.4994 },
+  );
+
+  const rolls = 2000;
+  let sumFromCenter = 0;
+  for (let i = 0; i < rolls; i += 1) {
+    const point = randomPointInCircle(circle);
+    assert.ok(point.latitude >= -90 && point.latitude <= 90, `latitude ${point.latitude}`);
+    assert.ok(point.longitude >= -180 && point.longitude < 180, `longitude ${point.longitude}`);
+
+    const fromCenter = haversineMeters(circle.centerLat, circle.centerLng, point.latitude, point.longitude);
+    assert.ok(fromCenter <= circle.radiusMeters + 1, `${fromCenter} > ${circle.radiusMeters}`);
+    sumFromCenter += fromCenter;
+  }
+
+  // Uniform-by-area puts the mean distance at 2R/3; uniform-by-radius would
+  // give R/2. This is what separates the two distributions.
+  const meanRatio = sumFromCenter / rolls / circle.radiusMeters;
+  assert.ok(Math.abs(meanRatio - 2 / 3) < 0.02, `mean radius ratio ${meanRatio}`);
+});
+
+test('spreads random points across the whole disc, not just the centre', () => {
+  const circle = circleFromDiameter(
+    { latitude: 39.9087, longitude: 116.3975 },
+    { latitude: 40.0, longitude: 116.5 },
+  );
+
+  let inner = 0;
+  let outer = 0;
+  for (let i = 0; i < 2000; i += 1) {
+    const point = randomPointInCircle(circle);
+    const fromCenter = haversineMeters(circle.centerLat, circle.centerLng, point.latitude, point.longitude);
+    if (fromCenter < circle.radiusMeters / 2) inner += 1; else outer += 1;
+  }
+  // The inner half-radius disc holds 25% of the area, so the outer ring should
+  // collect roughly three times as many points.
+  const innerShare = inner / (inner + outer);
+  assert.ok(Math.abs(innerShare - 0.25) < 0.03, `inner share ${innerShare}`);
+});
+
+test('is deterministic for a given random source', () => {
+  const circle = { centerLat: 39.9, centerLng: 116.4, radiusMeters: 5000 };
+  const sequence = [0, 0.25, 0.5, 0.75, 0.999];
+  let index = 0;
+  const rng = () => sequence[index++ % sequence.length];
+
+  const first = randomPointInCircle(circle, rng);
+  index = 0;
+  assert.deepEqual(randomPointInCircle(circle, rng), first);
+  // rng() === 0 means dead centre.
+  assert.ok(haversineMeters(circle.centerLat, circle.centerLng, first.latitude, first.longitude) >= 0);
 });

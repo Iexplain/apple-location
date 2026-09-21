@@ -36,4 +36,10 @@ const API = {
     return this.request('POST', '/favorites', { name, latitude: lat, longitude: lng, altitude: alt, accuracy: acc });
   },
   deleteFavorite(id) { return this.request('DELETE', '/favorites/' + id); },
+
+  // ── Random walk range ──
+  getRange() { return this.request('GET', '/range'); },
+  setRangePoint(slot, favoriteId) { return this.request('POST', '/range', { slot, favoriteId }); },
+  clearRangePoint(slot) { return this.request('DELETE', '/range/' + slot); },
+  randomizeLocation() { return this.request('POST', '/range/random'); },
 };

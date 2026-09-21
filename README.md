@@ -8,6 +8,7 @@
 
 - 设置目标纬度、经度、海拔和精度
 - 保存常用位置并快速切换
+- 随机游走：选两个收藏点作为直径构成一个圆，一键在圆内随机取点
 - 自动生成 Root CA、VPN 服务器证书、客户端证书和 WLOC TLS 证书
 - 生成包含 IKEv2 VPN、Root CA 和客户端证书的 iOS `.mobileconfig`
 - 使用 HTTP Basic Auth 保护网页、位置管理 API 和描述文件下载
@@ -176,6 +177,15 @@ Root CA 的“完全信任”同时用于 WLOC HTTPS。只安装描述文件但�
 
 WLOC 叶子证书最长为 397 天，以满足现代 iOS 对 TLS 服务器证书有效期的要求。到期时服务会使用原 Root CA 自动重新签发 WLOC 叶子证书；Root CA 不变时，手机不需要重新安装描述文件。
 
+## 随机游走
+
+不想一直停在同一个坐标时，可以在收藏里给两个点分别点 `[A]` 和 `[B]`——这两点连成的线段作为**直径**构成一个圆。之后每点一次「随机取点」，就会在圆内均匀随机选一个位置并直接应用为目标位置。
+
+- 圆心取两点在球面上的中点，因此 A、B 都**恰好落在圆周上**；半径等于两点距离的一半。
+- 取点按**面积均匀**分布（`r = R·√U`），圆内每个位置被选中的概率相同。若不做开根号，点会明显向圆心聚集。
+- 两个端点的坐标在设置时从收藏**快照**保存，之后删除该收藏不会影响已配置的范围。
+- 海拔和精度沿用当前设置，随机只改变经纬度。
+
 ## API
 
 除健康检查外，以下接口都需要认证：
@@ -188,6 +198,10 @@ WLOC 叶子证书最长为 397 天，以满足现代 iOS 对 TLS 服务器证书
 | GET | `/api/favorites` | Basic Auth | 获取收藏列表 |
 | POST | `/api/favorites` | Basic Auth | 添加收藏 |
 | DELETE | `/api/favorites/:id` | Basic Auth | 删除收藏 |
+| GET | `/api/range` | Basic Auth | 获取随机游走的两个端点、圆心和半径 |
+| POST | `/api/range` | Basic Auth | 从收藏设置端点 A 或 B（`{ slot, favoriteId }`） |
+| DELETE | `/api/range/:slot` | Basic Auth | 清除端点 A 或 B |
+| POST | `/api/range/random` | Basic Auth | 在圆内随机取点并写入目标位置 |
 | GET | `/api/vpn/profile` | Basic Auth | 下载 `.mobileconfig` |
 | GET | `/api/certificate` | Basic Auth | 下载 Root CA |
 | GET | `/api/vpn/server-bundle` | Bearer Token | 获取 VPN 服务器证书包 |

@@ -415,6 +415,30 @@ input::placeholder {
   background: rgba(255, 69, 58, 0.25);
 }
 
+/* Range endpoint pickers — A is accent-blue, B is green, matching the badge palette */
+.fav-pick {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary);
+}
+
+.fav-pick:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.fav-pick.picked-a {
+  background: rgba(10, 132, 255, 0.35);
+  color: var(--accent);
+}
+
+.fav-pick.picked-b {
+  background: rgba(48, 209, 88, 0.25);
+  color: var(--green);
+}
+
+.range-actions {
+  margin-top: 18px;
+}
+
 /* ===== VIP / Membership ===== */
 .vip-card {
   border-color: rgba(255, 214, 10, 0.15);

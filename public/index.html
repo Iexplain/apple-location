@@ -74,6 +74,47 @@
       <div id="favList" class="fav-list"></div>
     </section>
 
+    <!-- Random Walk -->
+    <section class="card">
+      <div class="card-header">
+        <span class="card-title">随机游走</span>
+        <span class="badge badge-location">Circle</span>
+      </div>
+      <p class="hint">在收藏里点 [A] [B] 选两个点，两点连线作为直径构成一个圆；每次取点都会落在这个圆内。</p>
+
+      <div class="fav-list">
+        <div class="fav-item">
+          <div class="fav-item-info">
+            <span class="fav-item-name">点 A</span>
+            <span class="fav-item-coords" id="rangeA">未选择</span>
+          </div>
+        </div>
+        <div class="fav-item">
+          <div class="fav-item-info">
+            <span class="fav-item-name">点 B</span>
+            <span class="fav-item-coords" id="rangeB">未选择</span>
+          </div>
+        </div>
+        <div class="fav-item">
+          <div class="fav-item-info">
+            <span class="fav-item-name">圆心</span>
+            <span class="fav-item-coords" id="rangeCenter">--</span>
+          </div>
+        </div>
+        <div class="fav-item">
+          <div class="fav-item-info">
+            <span class="fav-item-name">半径</span>
+            <span class="fav-item-coords" id="rangeRadius">--</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="range-actions">
+        <button id="randomBtn" class="btn btn-primary">随机取点</button>
+      </div>
+      <div id="rangeMsg" class="msg"></div>
+    </section>
+
     <!-- iPhone Configuration -->
     <section class="card">
       <div class="card-header">

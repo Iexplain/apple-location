@@ -37,6 +37,7 @@ app.use(createBasicAuth({ ...config.auth, token: config.serverBundleToken }));
 const profileRoutes = require('./routes/profile');
 app.use('/api/location', require('./routes/location'));
 app.use('/api/favorites', require('./routes/favorites'));
+app.use('/api/range', require('./routes/range'));
 app.use('/api/vpn', profileRoutes);
 app.use('/api/certificate', profileRoutes.certRouter);
 
