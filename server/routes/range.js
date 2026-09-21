@@ -58,6 +58,20 @@ function describeRange(row) {
   };
 }
 
+/**
+ * Parse a favourite id from a request body.
+ *
+ * The browser always sends `data-*` attributes as strings, so `"5"` has to be
+ * accepted alongside `5`. Anything non-numeric is rejected rather than coerced
+ * — `Number('')` and `Number(null)` are both 0, which would silently address
+ * the wrong row.
+ */
+function parseFavoriteId(value) {
+  if (typeof value === 'number') return Number.isInteger(value) ? value : null;
+  if (typeof value === 'string' && /^\d+$/.test(value.trim())) return Number(value.trim());
+  return null;
+}
+
 // GET /api/range
 router.get('/', (req, res) => {
   res.json(describeRange(readRangeRow()));
@@ -69,10 +83,11 @@ router.post('/', (req, res) => {
   const columns = SLOT_COLUMNS[slot];
   if (!columns) return res.status(400).json({ error: '槽位只能是 a 或 b' });
 
-  if (!Number.isInteger(favoriteId)) {
+  const id = parseFavoriteId(favoriteId);
+  if (id === null) {
     return res.status(400).json({ error: '收藏 ID 必须为整数' });
   }
-  const favorite = db.prepare('SELECT * FROM favorites WHERE id = ?').get(favoriteId);
+  const favorite = db.prepare('SELECT * FROM favorites WHERE id = ?').get(id);
   if (!favorite) return res.status(404).json({ error: '收藏不存在' });
 
   // Snapshot the coordinates so deleting the favourite later does not break
@@ -145,3 +160,5 @@ router.post('/random', (req, res) => {
 });
 
 module.exports = router;
+// Exposed for the test suite; the router is the module's main export.
+module.exports.parseFavoriteId = parseFavoriteId;

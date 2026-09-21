@@ -27,6 +27,7 @@ const {
   randomPointInCircle,
   normalizeLongitude,
 } = require('../server/utils/geo');
+const { parseFavoriteId } = require('../server/routes/range');
 const forge = require('node-forge');
 
 function responseMock() {
@@ -322,6 +323,27 @@ test('spreads random points across the whole disc, not just the centre', () => {
   // collect roughly three times as many points.
   const innerShare = inner / (inner + outer);
   assert.ok(Math.abs(innerShare - 0.25) < 0.03, `inner share ${innerShare}`);
+});
+
+test('accepts a favourite id sent as a string, as the browser does', () => {
+  // Regression: `data-id` attributes are always strings, so posting
+  // { favoriteId: "5" } used to fail Number.isInteger and return
+  // "收藏 ID 必须为整数" for every tap of the A/B buttons.
+  assert.equal(parseFavoriteId('5'), 5);
+  assert.equal(parseFavoriteId(' 5 '), 5);
+  assert.equal(parseFavoriteId(5), 5);
+
+  // Rejected rather than coerced — Number('') and Number(null) are both 0,
+  // which would address the wrong row.
+  assert.equal(parseFavoriteId(''), null);
+  assert.equal(parseFavoriteId(null), null);
+  assert.equal(parseFavoriteId(undefined), null);
+  assert.equal(parseFavoriteId('abc'), null);
+  assert.equal(parseFavoriteId('5abc'), null);
+  assert.equal(parseFavoriteId(5.5), null);
+  assert.equal(parseFavoriteId('-1'), null);
+  assert.equal(parseFavoriteId([]), null);
+  assert.equal(parseFavoriteId({}), null);
 });
 
 test('is deterministic for a given random source', () => {
