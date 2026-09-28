@@ -16,7 +16,13 @@ process.env.SERVER_BUNDLE_TOKEN = 'bundle-token-0123456789';
 
 const config = require('../server/config');
 const certs = require('../server/utils/certificates');
-const { createBasicAuth, isDocumentationPlaceholder } = require('../server/utils/auth');
+const {
+  createBasicAuth,
+  isDocumentationPlaceholder,
+  signSession,
+  verifySession,
+  parseCookies,
+} = require('../server/utils/auth');
 const { validateLocation } = require('../server/utils/location');
 const { buildMobileConfig } = require('../server/utils/mobileconfig');
 const { patchWlocFrame, _internals: wlocProtocol } = require('../server/utils/wloc-protocol');
@@ -149,6 +155,110 @@ test('protects management routes with Basic Auth and the bundle with Bearer toke
   assert.equal(trailingSlashBundle.headers['WWW-Authenticate'],
     'Bearer realm="Virtual Location server bundle"');
   assert.equal(trailingSlashNextCalled, false);
+});
+
+test('issues a session cookie so an authenticated page never re-prompts', () => {
+  // Regression: Safari commits credentials from its auth dialog to the store
+  // after the navigation that triggered it, so the fetches a page fires on
+  // load raced ahead of them, 401ed, and produced a second dialog. The cookie
+  // rides along with the navigation response and closes that window.
+  const auth = {
+    username: 'admin',
+    password: 'test-password-012345',
+    token: 'bundle-token-0123456789',
+    production: true,
+  };
+  const middleware = createBasicAuth(auth);
+  const credentials = Buffer.from('admin:test-password-012345').toString('base64');
+
+  const login = responseMock();
+  middleware({
+    method: 'GET',
+    originalUrl: '/',
+    get(name) {
+      return name.toLowerCase() === 'authorization' ? `Basic ${credentials}` : '';
+    },
+  }, login, () => {});
+  assert.equal(login.statusCode, 200);
+
+  const setCookie = login.headers['Set-Cookie'];
+  assert.match(setCookie,
+    /^al_session=\d+\.[A-Za-z0-9_-]+; Path=\/; Max-Age=\d+; HttpOnly; SameSite=Strict; Secure$/);
+  const cookie = setCookie.split(';')[0];
+
+  // The load-time fetches carry only the cookie — no Authorization header.
+  let nextCalled = false;
+  const api = responseMock();
+  middleware({
+    method: 'GET',
+    originalUrl: '/api/location',
+    get(name) { return name.toLowerCase() === 'cookie' ? cookie : ''; },
+  }, api, () => { nextCalled = true; });
+  assert.equal(nextCalled, true);
+  assert.equal(api.statusCode, 200);
+  // Re-issuing on every call would churn the header for no gain.
+  assert.equal(api.headers['Set-Cookie'], undefined);
+
+  // A browser without the cookie still gets the Basic challenge.
+  const anonymous = responseMock();
+  let anonymousNext = false;
+  middleware({
+    method: 'GET',
+    originalUrl: '/api/location',
+    get: () => '',
+  }, anonymous, () => { anonymousNext = true; });
+  assert.equal(anonymousNext, false);
+  assert.equal(anonymous.statusCode, 401);
+  assert.equal(anonymous.headers['WWW-Authenticate'],
+    'Basic realm="Virtual Location", charset="UTF-8"');
+
+  // The bundle route stays Bearer-only — a session cookie must not unlock it.
+  const bundle = responseMock();
+  let bundleNext = false;
+  middleware({
+    method: 'GET',
+    originalUrl: '/api/vpn/server-bundle',
+    get(name) { return name.toLowerCase() === 'cookie' ? cookie : ''; },
+  }, bundle, () => { bundleNext = true; });
+  assert.equal(bundleNext, false);
+  assert.equal(bundle.statusCode, 401);
+});
+
+test('rejects forged, expired and foreign session cookies', () => {
+  const auth = {
+    username: 'admin',
+    password: 'test-password-012345',
+    token: 'bundle-token-0123456789',
+    production: true,
+  };
+  const valid = signSession(auth, Date.now() + 60000);
+  assert.equal(verifySession(auth, valid), true);
+
+  assert.equal(verifySession(auth, signSession(auth, Date.now() - 1000)), false);
+
+  // Tampered MAC.
+  const [payload, mac] = valid.split('.');
+  assert.equal(verifySession(auth, `${payload}.${mac.slice(0, -1)}${mac.endsWith('A') ? 'B' : 'A'}`), false);
+  // Expiry pushed out without a fresh MAC.
+  assert.equal(verifySession(auth, `${Date.now() + 99999999}.${mac}`), false);
+  // Signed under different credentials — rotating the password logs everyone out.
+  assert.equal(verifySession(auth, signSession({ ...auth, password: 'rotated-password-0123' },
+    Date.now() + 60000)), false);
+
+  for (const value of ['', 'x', '123.', '.abc', 'not-a-number.abc', '1.2.3', null, undefined]) {
+    assert.equal(verifySession(auth, value), false, JSON.stringify(value));
+  }
+});
+
+test('parses cookies defensively', () => {
+  assert.deepEqual(parseCookies('a=1; b=2'), { a: '1', b: '2' });
+  assert.deepEqual(parseCookies('al_session=x%2Ey'), { al_session: 'x.y' });
+  // Nameless parts are skipped and the first occurrence of a name wins.
+  assert.deepEqual(parseCookies('bad; =1; a=1; a=2'), { a: '1' });
+  assert.deepEqual(parseCookies(''), {});
+  assert.deepEqual(parseCookies(undefined), {});
+  // A stray percent sign must not throw.
+  assert.deepEqual(parseCookies('a=%'), { a: '%' });
 });
 
 test('rejects production startup without a sufficiently long bundle token', () => {
