@@ -3,8 +3,8 @@
  *
  * /clls/wloc does not use a binary plist.  Its response is an 8-byte header,
  * a 2-byte big-endian protobuf length, and a protobuf payload.  We preserve
- * every unknown field Apple returns and only replace coordinates/accuracy in
- * Wi-Fi and cellular location messages.
+ * every unknown field Apple returns and only replace coordinates, accuracy and
+ * altitude in Wi-Fi and cellular location messages.
  */
 
 function readVarint(buffer, start) {
@@ -113,6 +113,12 @@ function patchLocationMessage(buffer, location, stats) {
     if (field.fieldNo === 3 && field.wireType === 0) {
       changed = true;
       return encodeField(3, 0, BigInt(Math.max(1, Math.round(location.accuracy || 65))));
+    }
+    // Field 5 is altitude in whole meters (-1 when Apple does not know it);
+    // without this the real access points' altitude leaks through unchanged.
+    if (field.fieldNo === 5 && field.wireType === 0) {
+      changed = true;
+      return encodeField(5, 0, BigInt(Math.round(location.altitude || 0)));
     }
     return field.raw;
   });

@@ -326,7 +326,7 @@ test('patches real framed protobuf WLOC responses without losing containers', ()
     + '182e2000280d300d583f60a801a80102',
     'hex',
   );
-  const target = { latitude: 31.2397, longitude: 121.4994, accuracy: 25 };
+  const target = { latitude: 31.2397, longitude: 121.4994, accuracy: 25, altitude: -3.4 };
   const patched = patchWlocFrame(frame, target);
 
   assert.equal(patched.stats.wifi, 7);
@@ -344,9 +344,13 @@ test('patches real framed protobuf WLOC responses without losing containers', ()
     const latitude = coordinates.find((field) => field.fieldNo === 1).value;
     const longitude = coordinates.find((field) => field.fieldNo === 2).value;
     const accuracy = coordinates.find((field) => field.fieldNo === 3).value;
+    const altitude = coordinates.find((field) => field.fieldNo === 5).value;
     assert.equal(BigInt.asIntN(64, latitude), BigInt(Math.round(target.latitude * 1e8)));
     assert.equal(BigInt.asIntN(64, longitude), BigInt(Math.round(target.longitude * 1e8)));
     assert.equal(accuracy, 25n);
+    // Negative on purpose: altitude is the one patched field that can go below
+    // zero, so this also covers the two's-complement varint encoding.
+    assert.equal(BigInt.asIntN(64, altitude), -3n);
   }
 });
 
