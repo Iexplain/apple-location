@@ -73,6 +73,14 @@ app.use((err, req, res, next) => {
 const httpServer = app.listen(config.port, config.httpHost, () => {
   console.log(`[http]  listening on ${config.httpHost}:${config.port}`);
 });
+// A bind failure means no API and no UI are being served, so there is no way
+// left to change the target location; exit and let pm2 restart or flag it
+// rather than leaving a live-but-dead PID. Errors raised after the socket is
+// listening are transient — keep serving.
+httpServer.on('error', (error) => {
+  console.error(`[http]  listener error: ${error.message}`);
+  if (!httpServer.listening) process.exit(1);
+});
 
 // ── :8444 HTTPS reverse proxy → :3000 ────────────────────────────────────────
 function startHttpsProxy() {
