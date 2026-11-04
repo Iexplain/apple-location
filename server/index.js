@@ -60,8 +60,13 @@ app.get('*', (req, res) => {
 });
 
 app.use((err, req, res, next) => {
-  console.error('[error]', err.message);
-  res.status(500).json({ error: '服务器内部错误' });
+  // Body-parser errors (malformed JSON, oversized payload) carry a 4xx status;
+  // report it as a client error rather than masking every one as 500.
+  const status = Number.isInteger(err.status) ? err.status : 500;
+  if (status >= 500) console.error('[error]', err.message);
+  else console.warn('[error]', `${status} ${err.message}`);
+  if (res.headersSent) return next(err);
+  res.status(status).json({ error: status >= 500 ? '服务器内部错误' : '请求格式无效' });
 });
 
 // ── :3000 HTTP ────────────────────────────────────────────────────────────────
